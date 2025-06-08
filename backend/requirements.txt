@@ -1,0 +1,9 @@
+Flask
+Flask-Cors
+pydub==0.25.1
+openai-whisper
+numpy
+flask-socketio
+python-dotenv
+google-generativeai
+PyMuPDF

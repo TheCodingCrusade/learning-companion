@@ -1,0 +1,59 @@
+# --- Secrets
+.env
+/backend/.env
+
+# --- Python / Backend
+# Virtual Environment
+/backend/LearningCompanion-env/
+
+# Temporary Uploads
+/backend/temp_uploads/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+
+# --- Node / Frontend
+# Dependencies
+/frontend/node_modules/
+/frontend/.pnp
+/frontend/.pnp.js
+
+# Production build folder
+/frontend/build/
+
+# Testing
+/frontend/coverage/
+
+# Logs
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+
+# Local environment variables for the frontend
+/frontend/.env.local
+/frontend/.env.development.local
+/frontend/.env.test.local
+/frontend/.env.production.local
+
+
+# --- OS / Editor Specific
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# VSCode
+.vscode/
+
+# PyCharm
+.idea/

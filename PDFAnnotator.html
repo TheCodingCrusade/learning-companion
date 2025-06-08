@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI PDF Annotator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js and PDF-lib -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <!-- TensorFlow.js and Universal Sentence Encoder -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/universal-sentence-encoder@1.3.3/dist/universal-sentence-encoder.min.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .step-indicator {
+            transition: all 0.3s ease-in-out;
+        }
+    </style>
+     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-8 space-y-8">
+        
+        <!-- Header -->
+        <div class="text-center">
+            <h1 class="text-4xl font-bold text-gray-800">AI-Powered PDF Annotator</h1>
+            <p class="text-gray-500 mt-2">Upload lecture slides and a summary, and let AI place your notes automatically.</p>
+        </div>
+
+        <!-- Loading and Status Section -->
+        <div id="status-container" class="text-center p-4 rounded-lg bg-gray-50 hidden">
+            <div id="loader" class="mx-auto"></div>
+            <p id="status-text" class="mt-4 text-lg font-medium text-gray-700">Initializing AI Model... (This may take a moment)</p>
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mt-4">
+                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="main-content" class="space-y-6">
+            <!-- Step 1: Upload PDF -->
+            <div class="step-indicator p-6 border-2 border-dashed rounded-lg">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-3">Step 1: Upload Your Lecture Slides</h2>
+                <input type="file" id="pdf-upload" accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+            </div>
+
+            <!-- Step 2: Input Summary -->
+            <div class="step-indicator p-6 border-2 border-dashed rounded-lg">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-3">Step 2: Provide Your Summary</h2>
+                <p class="text-sm text-gray-500 mb-3">Enter each point of your summary on a new line.</p>
+                <textarea id="summary-input" rows="10" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="e.g., The mitochondria is the powerhouse of the cell.&#10;Photosynthesis converts light energy into chemical energy."></textarea>
+            </div>
+
+            <!-- Step 3: Annotate Button -->
+            <div class="text-center">
+                 <button id="annotate-btn" class="bg-blue-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg hover:bg-blue-700 transform hover:-translate-y-1 transition-all duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none" disabled>
+                    Annotate PDF
+                </button>
+            </div>
+        </div>
+        
+        <!-- Download Section -->
+        <div id="download-section" class="text-center hidden p-6 bg-green-50 rounded-lg">
+            <h2 class="text-2xl font-bold text-green-800">Annotation Complete!</h2>
+            <p class="text-gray-600 mt-2 mb-4">Your annotated PDF is ready for download.</p>
+            <a id="download-link" class="bg-green-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg hover:bg-green-700 transition-all duration-300">
+                Download Annotated PDF
+            </a>
+        </div>
+
+    </div>
+
+    <script>
+        // Set workerSrc for pdf.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;
+
+        // UI Elements
+        const annotateBtn = document.getElementById('annotate-btn');
+        const pdfUpload = document.getElementById('pdf-upload');
+        const summaryInput = document.getElementById('summary-input');
+        const statusContainer = document.getElementById('status-container');
+        const statusText = document.getElementById('status-text');
+        const mainContent = document.getElementById('main-content');
+        const downloadSection = document.getElementById('download-section');
+        const downloadLink = document.getElementById('download-link');
+        const loader = document.getElementById('loader');
+        const progressBar = document.getElementById('progress-bar');
+
+        let useModel = null;
+
+        /**
+         * Initializes the Universal Sentence Encoder model.
+         * Disables the button until the model is loaded.
+         */
+        async function initializeModel() {
+            try {
+                statusContainer.classList.remove('hidden');
+                useModel = await use.load();
+                statusText.textContent = 'AI Model Loaded. Ready to Annotate!';
+                loader.classList.add('hidden');
+                annotateBtn.disabled = false;
+                setTimeout(() => { statusContainer.classList.add('hidden'); }, 2000);
+            } catch (error) {
+                console.error("Error loading model:", error);
+                statusText.textContent = 'Error loading AI Model. Please refresh the page.';
+                loader.classList.add('hidden');
+            }
+        }
+
+        // Main annotation function
+        annotateBtn.addEventListener('click', async () => {
+            const pdfFile = pdfUpload.files[0];
+            const summaryText = summaryInput.value.trim();
+
+            if (!pdfFile || !summaryText) {
+                alert('Please upload a PDF and provide a summary.');
+                return;
+            }
+
+            // Reset UI
+            mainContent.classList.add('hidden');
+            downloadSection.classList.add('hidden');
+            statusContainer.classList.remove('hidden');
+            loader.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            
+            try {
+                // 1. Process PDF to get text blocks with coordinates
+                updateStatus('Step 1/4: Reading and analyzing PDF...', 10);
+                const pdfTextBlocks = await processPdf(pdfFile);
+                
+                // 2. Process summary
+                const summaryPoints = summaryText.split('\n').filter(line => line.trim() !== '');
+
+                // 3. Find best matches using AI
+                updateStatus('Step 2/4: Understanding text with AI...', 40);
+                const matches = await findBestMatches(pdfTextBlocks, summaryPoints);
+
+                // 4. Create annotated PDF
+                updateStatus('Step 3/4: Adding annotations to PDF...', 75);
+                const annotatedPdfBytes = await createAnnotatedPdf(pdfFile, matches);
+                
+                // 5. Create download link
+                updateStatus('Step 4/4: Finalizing your file...', 95);
+                const blob = new Blob([annotatedPdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                downloadLink.href = url;
+                downloadLink.download = `annotated_${pdfFile.name}`;
+
+                statusContainer.classList.add('hidden');
+                downloadSection.classList.remove('hidden');
+                progressBar.style.width = '100%';
+
+            } catch (error) {
+                console.error("Annotation failed:", error);
+                statusText.textContent = `An error occurred: ${error.message}. Please try again.`;
+                loader.classList.add('hidden');
+                // Show main content again on error
+                mainContent.classList.remove('hidden');
+            }
+        });
+        
+        /**
+         * Updates the status text and progress bar.
+         * @param {string} text - The status message to display.
+         * @param {number} percentage - The progress percentage (0-100).
+         */
+        function updateStatus(text, percentage) {
+            statusText.textContent = text;
+            progressBar.style.width = `${percentage}%`;
+        }
+
+        /**
+         * Processes a PDF file to extract text content and coordinates.
+         * @param {File} file - The PDF file to process.
+         * @returns {Promise<Array<Object>>} - A promise that resolves to an array of text block objects.
+         */
+        async function processPdf(file) {
+            const fileReader = new FileReader();
+            return new Promise((resolve, reject) => {
+                fileReader.onload = async (event) => {
+                    try {
+                        const typedarray = new Uint8Array(event.target.result);
+                        const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+                        const allTextBlocks = [];
+
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            const viewport = page.getViewport({ scale: 1 });
+                            
+                            // Simple grouping of text items into blocks
+                            const groupedItems = groupTextItems(textContent.items, viewport.height);
+                            
+                            groupedItems.forEach(item => {
+                                allTextBlocks.push({
+                                    text: item.text,
+                                    page: i,
+                                    x: item.x,
+                                    y: item.y,
+                                    width: item.width,
+                                    height: item.height,
+                                });
+                            });
+                        }
+                        resolve(allTextBlocks);
+                    } catch (error) {
+                        reject(new Error("Could not read the PDF. It might be corrupted or image-based."));
+                    }
+                };
+                fileReader.readAsArrayBuffer(file);
+            });
+        }
+        
+        /**
+         * Groups nearby text items into more coherent blocks.
+         * @param {Array<Object>} items - Array of text items from pdf.js.
+         * @param {number} pageHeight - The height of the PDF page for coordinate conversion.
+         * @returns {Array<Object>} - An array of grouped text blocks.
+         */
+        function groupTextItems(items, pageHeight) {
+            if (!items.length) return [];
+
+            let grouped = [];
+            let currentGroup = null;
+
+            for (const item of items) {
+                // Initial coordinate transformation
+                const [x, y, width, height] = [
+                    item.transform[4],
+                    pageHeight - item.transform[5] - item.height, // Convert to top-left origin
+                    item.width,
+                    item.height
+                ];
+
+                if (currentGroup === null) {
+                    currentGroup = { text: item.str, x, y, width, height, lastY: y, lastHeight: height };
+                } else {
+                    // Check if items are on the same line or very close vertically
+                    const verticalDistance = y - (currentGroup.lastY + currentGroup.lastHeight);
+                    const isSameLine = Math.abs(y - currentGroup.y) < (item.height / 2);
+
+                    if (isSameLine || (verticalDistance >= 0 && verticalDistance < 5)) {
+                        // Append to the current group
+                        currentGroup.text += (isSameLine ? ' ' : '\n') + item.str;
+                        currentGroup.width = Math.max(currentGroup.width, x + width - currentGroup.x);
+                        currentGroup.height = (y + height) - currentGroup.y;
+                        currentGroup.lastY = y;
+                        currentGroup.lastHeight = height;
+                    } else {
+                        // Start a new group
+                        grouped.push(currentGroup);
+                        currentGroup = { text: item.str, x, y, width, height, lastY: y, lastHeight: height };
+                    }
+                }
+            }
+             if (currentGroup) {
+                grouped.push(currentGroup);
+            }
+            return grouped;
+        }
+
+
+        /**
+         * Finds the best matching text block in the PDF for each summary point.
+         * @param {Array<Object>} pdfTextBlocks - Array of text blocks from the PDF.
+         * @param {Array<string>} summaryPoints - Array of summary sentences.
+         * @returns {Promise<Array<Object>>} - A promise that resolves to an array of match objects.
+         */
+        async function findBestMatches(pdfTextBlocks, summaryPoints) {
+            const pdfTexts = pdfTextBlocks.map(block => block.text);
+
+            const [summaryEmbeddings, pdfEmbeddings] = await Promise.all([
+                useModel.embed(summaryPoints),
+                useModel.embed(pdfTexts)
+            ]);
+
+            const matches = [];
+            const summaryEmbeddingsArray = summaryEmbeddings.arraySync();
+
+            for (let i = 0; i < summaryPoints.length; i++) {
+                const summaryEmbedding = tf.tensor(summaryEmbeddingsArray[i]);
+                let bestMatchIndex = -1;
+                let bestScore = -1;
+
+                const pdfEmbeddingsArray = pdfEmbeddings.arraySync();
+                for (let j = 0; j < pdfTexts.length; j++) {
+                    const pdfEmbedding = tf.tensor(pdfEmbeddingsArray[j]);
+                    const score = await tf.matMul(summaryEmbedding.expandDims(0), pdfEmbedding.expandDims(1)).data();
+                    if (score[0] > bestScore) {
+                        bestScore = score[0];
+                        bestMatchIndex = j;
+                    }
+                }
+                
+                if (bestMatchIndex !== -1) {
+                    matches.push({
+                        summaryPoint: summaryPoints[i],
+                        bestMatch: pdfTextBlocks[bestMatchIndex]
+                    });
+                }
+            }
+            return matches;
+        }
+
+        /**
+         * Creates a new PDF with annotations.
+         * @param {File} originalPdfFile - The original PDF file.
+         * @param {Array<Object>} matches - The array of matches between summary and PDF text.
+         * @returns {Promise<Uint8Array>} - A promise that resolves to the bytes of the new PDF.
+         */
+        async function createAnnotatedPdf(originalPdfFile, matches) {
+            const { PDFDocument, rgb, StandardFonts } = PDFLib;
+            const existingPdfBytes = await originalPdfFile.arrayBuffer();
+            const pdfDoc = await PDFDocument.load(existingPdfBytes);
+            const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+            const pages = pdfDoc.getPages();
+
+            for (const match of matches) {
+                const { summaryPoint, bestMatch } = match;
+                const page = pages[bestMatch.page - 1];
+                const { width, height } = page.getSize();
+                
+                // --- Draw Highlight Box around matched text ---
+                page.drawRectangle({
+                    x: bestMatch.x - 2,
+                    y: bestMatch.y - 2,
+                    width: bestMatch.width + 4,
+                    height: bestMatch.height + 4,
+                    borderColor: rgb(0.98, 0.84, 0.37), // yellow
+                    borderWidth: 1.5,
+                    opacity: 0.5,
+                });
+                
+                // --- Draw Annotation Box ---
+                const noteWidth = 150;
+                const fontSize = 8;
+                const padding = 5;
+
+                // Simple text wrapping
+                const wrappedText = wrapText(summaryPoint, helveticaFont, fontSize, noteWidth - padding * 2);
+                const noteHeight = wrappedText.length * fontSize * 1.2 + padding * 2;
+                
+                // Position the note box to the side
+                let noteX = bestMatch.x + bestMatch.width + 5;
+                if (noteX + noteWidth > width) {
+                    noteX = bestMatch.x - noteWidth - 5;
+                }
+                noteX = Math.max(0, noteX); // Ensure it's not off-screen left
+                
+                const noteY = bestMatch.y;
+                
+                page.drawRectangle({
+                    x: noteX,
+                    y: noteY,
+                    width: noteWidth,
+                    height: noteHeight,
+                    color: rgb(1, 0.96, 0.75), // Light yellow
+                    borderColor: rgb(0.9, 0.8, 0.4),
+                    borderWidth: 1,
+                    opacity: 0.9
+                });
+                
+                page.drawText(wrappedText.join('\n'), {
+                    x: noteX + padding,
+                    y: noteY + noteHeight - padding - fontSize,
+                    font: helveticaFont,
+                    size: fontSize,
+                    color: rgb(0.2, 0.2, 0.2),
+                    lineHeight: fontSize * 1.2,
+                });
+
+                // --- Draw a line connecting the highlight to the note ---
+                page.drawLine({
+                    start: { x: bestMatch.x + bestMatch.width, y: bestMatch.y + bestMatch.height / 2 },
+                    end: { x: noteX, y: noteY + noteHeight / 2 },
+                    thickness: 0.5,
+                    color: rgb(0.5, 0.5, 0.5),
+                    opacity: 0.7
+                })
+            }
+
+            return pdfDoc.save();
+        }
+
+        /**
+         * Simple text wrapping utility for pdf-lib.
+         * @param {string} text - The text to wrap.
+         * @param {PDFFont} font - The font being used.
+         * @param {number} size - The font size.
+         * @param {number} maxWidth - The maximum width of a line.
+         * @returns {Array<string>} - An array of lines.
+         */
+        function wrapText(text, font, size, maxWidth) {
+            const words = text.split(' ');
+            const lines = [];
+            let currentLine = '';
+
+            for (const word of words) {
+                const testLine = currentLine.length > 0 ? `${currentLine} ${word}` : word;
+                const width = font.widthOfTextAtSize(testLine, size);
+
+                if (width < maxWidth) {
+                    currentLine = testLine;
+                } else {
+                    lines.push(currentLine);
+                    currentLine = word;
+                }
+            }
+            if (currentLine.length > 0) {
+                lines.push(currentLine);
+            }
+            return lines;
+        }
+
+        // Initialize the model when the script loads
+        initializeModel();
+
+    </script>
+</body>
+</html>
