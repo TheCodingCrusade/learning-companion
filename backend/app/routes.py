@@ -1,6 +1,7 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from . import socketio
 from .services import process_video_and_emit_progress
+from .summariser import generate_summary
 import os
 import tempfile
 
@@ -48,3 +49,30 @@ def handle_transcription_request(data):
         socketio=socketio,
         video_path=video_path
     )
+
+@socketio.on('start_summary')
+def handle_summary_request(data):
+    """
+    Receives a transcript and a path to the slides PDF, then starts
+    the summarization process.
+    """
+    transcript = data.get('transcript')
+    slides_path = data.get('slides_path')
+
+    if not transcript or not slides_path or not os.path.exists(slides_path):
+        socketio.emit('summary_error', {'error': 'Missing transcript or slides file on server.'})
+        return
+
+    print(f"Starting summary process for slides: {slides_path}")
+    
+    # Emit a status update to the client
+    socketio.emit('progress_update', {'status': 'Summarizing with AI...', 'progress': 0})
+    
+    # Generate the summary (this can take some time)
+    summary = generate_summary(transcript, slides_path)
+
+    if summary.startswith("Error:"):
+         socketio.emit('summary_error', {'error': summary})
+    else:
+        # Send the final summary back to the client
+        socketio.emit('summary_complete', {'summary': summary})
