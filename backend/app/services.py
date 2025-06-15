@@ -79,7 +79,7 @@ def process_video_and_emit_progress(socketio, video_path):
             progress = int(100 * (i / len(audio_chunks)))
             time_elapsed = time.time() - start_time
             time_per_chunk = time_elapsed / (i + 1) if i > 0 else time_elapsed
-            chunks_remaining = len(audio_chunks) - (i + 1)
+            chunks_remaining = len(audio_chunks) - i
             eta = int(time_per_chunk * chunks_remaining)
             status_msg = f"Transcribing chunk {i + 1}/{len(audio_chunks)}"
             socketio.emit('progress_update', {'status': status_msg, 'progress': progress, 'eta': f"{eta}s remaining"})
@@ -103,6 +103,7 @@ def process_video_and_emit_progress(socketio, video_path):
             # This calculation is now accurate because no time is discarded
             cumulative_duration += len(chunk) / 1000
 
+        socketio.emit('progress_update', {'status': 'Finalizing transcription...', 'progress': 100, 'eta': '0s remaining'})
         socketio.emit('transcription_complete', {'transcript': full_transcript.strip()})
 
     except Exception as e:

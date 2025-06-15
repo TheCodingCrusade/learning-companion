@@ -342,9 +342,13 @@ function App() {
             {isMultiFileMode && <p><strong>{overallFileStatusText}</strong></p>}
             <p>{statusMessage}</p> 
             <progress value={progress} max="100"></progress>
-            {status === 'transcribing' && displayedETA > 0 && 
+            {status === 'transcribing' && (
+              displayedETA > 0 ? (
                 <p><small>~{formatEta(displayedETA)} remaining for current file ({originalFilenames[currentFileIndex]})</small></p>
-            }
+              ) : (
+                <p><small>Almost finished...</small></p>
+              )
+            )}
           </div>
         )}
         
