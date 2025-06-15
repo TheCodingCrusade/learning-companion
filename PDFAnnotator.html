@@ -49,7 +49,9 @@
             <div id="loader" class="mx-auto"></div>
             <p id="status-text" class="mt-4 text-lg font-medium text-gray-700">Initializing AI Model... (This may take a moment)</p>
             <div class="w-full bg-gray-200 rounded-full h-2.5 mt-4">
-                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                <div id="progress-bar-container" class="w-full bg-gray-200 rounded-full h-2.5 mt-4">
+                    <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
             </div>
         </div>
 
@@ -64,8 +66,8 @@
             <!-- Step 2: Input Summary -->
             <div class="step-indicator p-6 border-2 border-dashed rounded-lg">
                 <h2 class="text-2xl font-semibold text-gray-700 mb-3">Step 2: Provide Your Summary</h2>
-                <p class="text-sm text-gray-500 mb-3">Enter each point of your summary on a new line.</p>
-                <textarea id="summary-input" rows="10" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="e.g., The mitochondria is the powerhouse of the cell.&#10;Photosynthesis converts light energy into chemical energy."></textarea>
+                <p class="text-sm text-gray-500 mb-3">Each paragraph of your summary (separated by one or more whitespaces) will be seen as one annotation.</p>
+                <textarea id="summary-input" rows="10" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Example summary:&#10;The mitochondria is the powerhouse of the cell.&#10;&#10;Photosynthesis converts light energy into chemical energy.&#10;&#10;..."></textarea>
             </div>
 
             <!-- Step 3: Annotate Button -->
@@ -102,6 +104,7 @@
         const downloadLink = document.getElementById('download-link');
         const loader = document.getElementById('loader');
         const progressBar = document.getElementById('progress-bar');
+        const progressBarContainer = document.getElementById('progress-bar-container');
 
         let useModel = null;
 
@@ -112,6 +115,7 @@
         async function initializeModel() {
             try {
                 statusContainer.classList.remove('hidden');
+                progressBarContainer.classList.add('hidden');
                 useModel = await use.load();
                 statusText.textContent = 'AI Model Loaded. Ready to Annotate!';
                 loader.classList.add('hidden');
@@ -138,6 +142,7 @@
             mainContent.classList.add('hidden');
             downloadSection.classList.add('hidden');
             statusContainer.classList.remove('hidden');
+            progressBarContainer.classList.remove('hidden');
             loader.classList.remove('hidden');
             progressBar.style.width = '0%';
             
@@ -146,8 +151,8 @@
                 updateStatus('Step 1/4: Reading and analyzing PDF...', 10);
                 const pdfTextBlocks = await processPdf(pdfFile);
                 
-                // 2. Process summary
-                const summaryPoints = summaryText.split('\n').filter(line => line.trim() !== '');
+                // 2. Process summary into paragraphs
+                const summaryPoints = summaryText.split(/\n\s*\n/).filter(point => point.trim() !== '');
 
                 // 3. Find best matches using AI
                 updateStatus('Step 2/4: Understanding text with AI...', 40);
@@ -167,6 +172,11 @@
                 statusContainer.classList.add('hidden');
                 downloadSection.classList.remove('hidden');
                 progressBar.style.width = '100%';
+                
+                // // 6. Play a notification sound on completion
+                // const successSound = new Audio('https://notificationsounds.com/storage/sounds/file-sounds/1110_notification-for-game.mp3');
+                // successSound.play();
+
 
             } catch (error) {
                 console.error("Annotation failed:", error);
@@ -319,6 +329,56 @@
             }
             return matches;
         }
+        
+        /**
+         * Replaces common unsupported characters with their WinAnsi-compatible equivalents.
+         * This version is updated to handle all special characters found in your summary.
+         * @param {string} text The input text.
+         * @returns {string} The sanitized text.
+         */
+        function sanitizeTextForPdf(text) {
+            // Stage 1: Replace known special characters with nice equivalents.
+            const niceReplacements = {
+                // --- Punctuation & Quotes ---
+                '\u2019': "'", // Right Single Quotation Mark
+                '\u2018': "'", // Left Single Quotation Mark
+                '\u201C': '"', // Left Double Quotation Mark
+                '\u201D': '"', // Right Double Quotation Mark
+                '\u2032': "'", // Prime
+                '\u2013': '-', // En Dash
+                '\u2014': '--', // Em Dash
+                '\u2026': '...', // Horizontal Ellipsis
+                '\u22c5': '*', // Dot Operator (the character from your error)
+                '\u8226': '-', // Dot Bulletpoint
+
+                // --- Greek characters ---
+                '\u03B1': 'alpha',
+                '\u03B2': 'beta',
+                '\u03B3': 'gamma',
+
+                // --- Whitespace ---
+                '\u00A0': ' ', // No-Break Space
+                '\t':   '   ', // Tab
+            };
+
+            const niceRegex = new RegExp(Object.keys(niceReplacements).join('|'), 'g');
+            
+            let sanitizedText = text.replace(niceRegex, (match) => {
+                console.warn(`Replaced known character: code ${match.charCodeAt(0)} with '${niceReplacements[match]}'`);
+                return niceReplacements[match];
+            });
+
+            // Stage 2: Catch-all for any remaining non-printable ASCII characters.
+            // This finds anything not in the standard range of keyboard characters.
+            const placeholder = '#';
+            sanitizedText = sanitizedText.replace(/[^\x20-\x7E\n]/g, (match) => {
+                console.error(`Replaced UNKNOWN character: code ${match.charCodeAt(0)} with placeholder '${placeholder}'`);
+                return placeholder;
+            });
+
+            return sanitizedText;
+        }
+
 
         /**
          * Creates a new PDF with annotations.
@@ -333,10 +393,18 @@
             const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
             const pages = pdfDoc.getPages();
 
+            // This object will store the lowest available Y coordinate for each page.
+            const pageOccupancy = {}; 
+
             for (const match of matches) {
                 const { summaryPoint, bestMatch } = match;
                 const page = pages[bestMatch.page - 1];
                 const { width, height } = page.getSize();
+                
+                // Initialize occupancy for the page if it's the first time we see it
+                if (!pageOccupancy[bestMatch.page]) {
+                    pageOccupancy[bestMatch.page] = height - 20; // Start placing notes 20px from the top
+                }
                 
                 // --- Draw Highlight Box around matched text ---
                 page.drawRectangle({
@@ -354,18 +422,29 @@
                 const fontSize = 8;
                 const padding = 5;
 
-                // Simple text wrapping
-                const wrappedText = wrapText(summaryPoint, helveticaFont, fontSize, noteWidth - padding * 2);
+                // Sanitize text and then wrap it
+                const sanitizedPoint = sanitizeTextForPdf(summaryPoint);
+                const wrappedText = wrapText(sanitizedPoint, helveticaFont, fontSize, noteWidth - padding * 2);
                 const noteHeight = wrappedText.length * fontSize * 1.2 + padding * 2;
                 
                 // Position the note box to the side
-                let noteX = bestMatch.x + bestMatch.width + 5;
-                if (noteX + noteWidth > width) {
-                    noteX = bestMatch.x - noteWidth - 5;
+                let noteX = bestMatch.x + bestMatch.width + 10;
+                if (noteX + noteWidth > width -10) {
+                    noteX = bestMatch.x - noteWidth - 10;
                 }
-                noteX = Math.max(0, noteX); // Ensure it's not off-screen left
+                noteX = Math.max(10, Math.min(noteX, width - noteWidth - 10)); // Ensure it's not off-screen left
+
+                // Find the next available Y position
+                let noteY = pageOccupancy[bestMatch.page] - noteHeight;
                 
-                const noteY = bestMatch.y;
+                // If it goes off the bottom of the page, reset to the top in a different column (simple example)
+                if (noteY < 10) {
+                    console.warn("Page is full, consider a more complex layout strategy.");
+                    noteY = height - 20 - noteHeight; // Reset to top
+                }
+
+                // Update the occupancy for the next note on this page
+                pageOccupancy[bestMatch.page] = noteY - 10; // 10px spacing
                 
                 page.drawRectangle({
                     x: noteX,
@@ -389,8 +468,8 @@
 
                 // --- Draw a line connecting the highlight to the note ---
                 page.drawLine({
-                    start: { x: bestMatch.x + bestMatch.width, y: bestMatch.y + bestMatch.height / 2 },
-                    end: { x: noteX, y: noteY + noteHeight / 2 },
+                    start: { x: bestMatch.x + bestMatch.width / 2, y: bestMatch.y + bestMatch.height / 2 },
+                    end: { x: noteX + (noteX > bestMatch.x ? 0 : noteWidth), y: noteY + noteHeight / 2 },
                     thickness: 0.5,
                     color: rgb(0.5, 0.5, 0.5),
                     opacity: 0.7
@@ -409,25 +488,30 @@
          * @returns {Array<string>} - An array of lines.
          */
         function wrapText(text, font, size, maxWidth) {
-            const words = text.split(' ');
-            const lines = [];
-            let currentLine = '';
+            const allLines = [];
+            const paragraphs = text.split('\n'); // First, split by manual newlines
 
-            for (const word of words) {
-                const testLine = currentLine.length > 0 ? `${currentLine} ${word}` : word;
-                const width = font.widthOfTextAtSize(testLine, size);
+            for (const paragraph of paragraphs) {
+                // Now apply word-wrapping to each individual paragraph/line
+                const words = paragraph.split(' ');
+                let currentLine = '';
 
-                if (width < maxWidth) {
-                    currentLine = testLine;
-                } else {
-                    lines.push(currentLine);
-                    currentLine = word;
+                for (const word of words) {
+                    const testLine = currentLine.length > 0 ? `${currentLine} ${word}` : word;
+                    const width = font.widthOfTextAtSize(testLine, size);
+
+                    if (width < maxWidth) {
+                        currentLine = testLine;
+                    } else {
+                        allLines.push(currentLine);
+                        currentLine = word;
+                    }
+                }
+                if (currentLine.length > 0) {
+                    allLines.push(currentLine);
                 }
             }
-            if (currentLine.length > 0) {
-                lines.push(currentLine);
-            }
-            return lines;
+            return allLines;
         }
 
         // Initialize the model when the script loads
