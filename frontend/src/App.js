@@ -90,6 +90,8 @@ function App() {
           setStatus('done');
           setProgress(100);
           setStatusMessage(`All ${selectedFiles.length} files processed successfully!`);
+          // Prevent further processing
+          processingFileRef.current = true;
         }
       } else {
         setCurrentTranscript(data.transcript);
@@ -223,7 +225,17 @@ function App() {
   };
   
   const handleStartProcessing = () => {
-    if(!selectedFiles || selectedFiles.length === 0) return;
+    // Temporary debugging lines
+    console.log("--- DEBUG: 'Transcribe Selected' button was clicked ---");
+    console.log("Current status is:", status);
+    console.log("Is a file already processing? (processingFileRef.current):", processingFileRef.current);
+    console.log("Number of selected files:", selectedFiles ? selectedFiles.length : 0);
+    
+    if(!selectedFiles || selectedFiles.length === 0) {
+      alert('Please select file(s) first!');
+      return;
+    }
+
     if (selectedFiles.length > 1) {
       setIsMultiFileMode(true);
     } else {
