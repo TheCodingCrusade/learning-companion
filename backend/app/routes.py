@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, send_file
 from . import socketio
 from .services import process_video_and_emit_progress
 from .summariser import generate_summary
@@ -50,29 +50,63 @@ def handle_transcription_request(data):
         video_path=video_path
     )
 
-@socketio.on('start_summary')
-def handle_summary_request(data):
+@main_bp.route('/download-summary', methods=['POST'])
+def download_summary():
     """
-    Receives a transcript and a path to the slides PDF, then starts
-    the summarization process.
+    Generates a summary and sends it back as a .docx file download.
     """
+    data = request.get_json()
     transcript = data.get('transcript')
     slides_path = data.get('slides_path')
+    filename = data.get('filename', 'summary') # Get original filename from frontend
 
     if not transcript or not slides_path or not os.path.exists(slides_path):
-        socketio.emit('summary_error', {'error': 'Missing transcript or slides file on server.'})
-        return
+        return jsonify({'error': 'Missing transcript or slides file on server.'}), 400
 
     print(f"Starting summary process for slides: {slides_path}")
     
-    # Emit a status update to the client
-    socketio.emit('progress_update', {'status': 'Summarizing with AI...', 'progress': 0})
-    
-    # Generate the summary (this can take some time)
-    summary = generate_summary(transcript, slides_path)
+    # Generate the summary and get the in-memory .docx file
+    summary_buffer = generate_summary(transcript, slides_path)
 
-    if summary.startswith("Error:"):
-         socketio.emit('summary_error', {'error': summary})
-    else:
-        # Send the final summary back to the client
-        socketio.emit('summary_complete', {'summary': summary})
+    if summary_buffer is None:
+        return jsonify({'error': 'Failed to generate summary.'}), 500
+        
+    # Sanitize filename and create the new .docx filename
+    base_filename = os.path.splitext(filename)[0]
+    docx_filename = f"{base_filename}-summary.docx"
+
+    # Use send_file to send the buffer as a file download
+    return send_file(
+        summary_buffer,
+        as_attachment=True,
+        download_name=docx_filename,
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+
+# Not needed anymore, as the summary will be downloaded as a formatted DOCX file
+# @socketio.on('start_summary')
+# def handle_summary_request(data):
+#     """
+#     Receives a transcript and a path to the slides PDF, then starts
+#     the summarization process.
+#     """
+#     transcript = data.get('transcript')
+#     slides_path = data.get('slides_path')
+
+#     if not transcript or not slides_path or not os.path.exists(slides_path):
+#         socketio.emit('summary_error', {'error': 'Missing transcript or slides file on server.'})
+#         return
+
+#     print(f"Starting summary process for slides: {slides_path}")
+    
+#     # Emit a status update to the client
+#     socketio.emit('progress_update', {'status': 'Summarizing with AI...', 'progress': 0})
+    
+#     # Generate the summary (this can take some time)
+#     summary = generate_summary(transcript, slides_path)
+
+#     if summary.startswith("Error:"):
+#          socketio.emit('summary_error', {'error': summary})
+#     else:
+#         # Send the final summary back to the client
+#         socketio.emit('summary_complete', {'summary': summary})
