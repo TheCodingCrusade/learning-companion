@@ -478,7 +478,7 @@ function App() {
 
             <div className="summariser-section">
               <h3>2. Upload Lecture Slides</h3>
-              <p className="drop-zone-text">The summary will be generated based on the content of these slides.</p>
+              <p className="drop-zone-text">The summary will be supported by the content of these slides.</p>
               <input type="file" accept=".pdf" onChange={handleSlidesFileChange} ref={slidesInputRef}/>
               {slidesFile && <p className="file-selected-text">Selected: {slidesFile.name}</p>}
             </div>

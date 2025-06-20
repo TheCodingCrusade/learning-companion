@@ -3,6 +3,7 @@ from . import socketio
 from .services import process_video_and_emit_progress
 from .summariser import generate_summary
 import os
+import io
 import tempfile
 
 # 1. Create a Blueprint object
@@ -65,48 +66,33 @@ def download_summary():
 
     print(f"Starting summary process for slides: {slides_path}")
     
-    # Generate the summary and get the in-memory .docx file
-    summary_buffer = generate_summary(transcript, slides_path)
+    temp_docx_path = None
+    try:
+        # Step 1: Generate the summary, which returns a path to a temporary .docx file
+        temp_docx_path = generate_summary(transcript, slides_path)
 
-    if summary_buffer is None:
-        return jsonify({'error': 'Failed to generate summary.'}), 500
+        if temp_docx_path is None:
+            return jsonify({'error': 'Failed to generate summary.'}), 500
+
+        # Step 2: Read the entire content of the temporary file into an in-memory buffer
+        with open(temp_docx_path, 'rb') as f:
+            buffer = io.BytesIO(f.read())
         
-    # Sanitize filename and create the new .docx filename
-    base_filename = os.path.splitext(filename)[0]
-    docx_filename = f"{base_filename}-summary.docx"
+        # Sanitize filename and create the new .docx filename
+        base_filename = os.path.splitext(filename)[0]
+        docx_filename_for_user = f"{base_filename}-summary.docx"
 
-    # Use send_file to send the buffer as a file download
-    return send_file(
-        summary_buffer,
-        as_attachment=True,
-        download_name=docx_filename,
-        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    )
+        # Step 3: Return the IN-MEMORY buffer to be sent to the user
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=docx_filename_for_user,
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
 
-# Not needed anymore, as the summary will be downloaded as a formatted DOCX file
-# @socketio.on('start_summary')
-# def handle_summary_request(data):
-#     """
-#     Receives a transcript and a path to the slides PDF, then starts
-#     the summarization process.
-#     """
-#     transcript = data.get('transcript')
-#     slides_path = data.get('slides_path')
-
-#     if not transcript or not slides_path or not os.path.exists(slides_path):
-#         socketio.emit('summary_error', {'error': 'Missing transcript or slides file on server.'})
-#         return
-
-#     print(f"Starting summary process for slides: {slides_path}")
-    
-#     # Emit a status update to the client
-#     socketio.emit('progress_update', {'status': 'Summarizing with AI...', 'progress': 0})
-    
-#     # Generate the summary (this can take some time)
-#     summary = generate_summary(transcript, slides_path)
-
-#     if summary.startswith("Error:"):
-#          socketio.emit('summary_error', {'error': summary})
-#     else:
-#         # Send the final summary back to the client
-#         socketio.emit('summary_complete', {'summary': summary})
+    finally:
+        # Step 4: This block will always execute after the 'try' block.
+        # We can now safely delete the physical file.
+        if temp_docx_path and os.path.exists(temp_docx_path):
+            os.remove(temp_docx_path)
+            print(f"Cleaned up temporary file: {temp_docx_path}")

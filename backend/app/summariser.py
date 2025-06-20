@@ -3,12 +3,12 @@ import google.generativeai as genai
 import fitz # PyMuPDF library
 from dotenv import load_dotenv
 import pypandoc
-import io
+import tempfile
 
 def generate_summary(transcript: str, pdf_file_path: str):
     """
     Generates a summary using the Gemini API, with context from a transcript
-    and the text content of a PDF file. Converts it to a DOCX file in memory.
+    and the text content of a PDF file. Converts it to a DOCX file.
     """
     print("Starting summary generation...")
     try:
@@ -58,16 +58,23 @@ def generate_summary(transcript: str, pdf_file_path: str):
         markdown_text = response.text
         print("Received response from Gemini API.")
         
-        # 5. Convert markdown to DOCX in memory
-        print("Converting markdown to DOCX...")
-        output = pypandoc.convert_text(markdown_text, 'docx', format='md')
+        # 5. Convert markdown to DOCX, saving to the temporary file path
+        temp_docx_file = tempfile.NamedTemporaryFile(delete=False, suffix=".docx")
+        temp_docx_path = temp_docx_file.name
+        temp_docx_file.close()
         
-        # 6. Create an in-memory binary stream
-        buffer = io.BytesIO(output)
-        buffer.seek(0)
+        # 6. Convert markdown to DOCX, saving to the temporary file path
+        print(f"Converting markdown to DOCX at: {temp_docx_path}")
+        pypandoc.convert_text(
+            markdown_text, 
+            'docx', 
+            format='gfm', 
+            outputfile=temp_docx_path
+        )
         print("Conversion complete.")
         
-        return buffer
+        # 3. Return the path to the created file
+        return temp_docx_path
 
     except Exception as e:
         print(f"An error occurred during summarisation: {e}")
