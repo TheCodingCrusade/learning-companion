@@ -162,7 +162,7 @@ function App() {
     setCurrentFileETA(0);
 
     try {
-      const uploadResponse = await fetch('${URL}/upload', {
+      const uploadResponse = await fetch(`${URL}/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -267,7 +267,7 @@ function App() {
     formData.append('file', file);
 
     try {
-      const uploadResponse = await fetch('${URL}/upload', {
+      const uploadResponse = await fetch(`${URL}/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -292,7 +292,7 @@ function App() {
     setStatusMessage('Generating AI summary... This may take a moment.');
 
     try {
-      const response = await fetch('${URL}/download-summary', {
+      const response = await fetch(`${URL}/download-summary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
