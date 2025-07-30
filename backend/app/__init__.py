@@ -6,7 +6,10 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 
 # Initialize extensions outside the factory
-socketio = SocketIO(cors_allowed_origins="*")
+socketio = SocketIO(cors_allowed_origins=[
+    "http://localhost:3000",  # For local development
+    "https://learning-companion-mpujw825w-thecodingcrusades-projects.vercel.app/"
+])
 
 def create_app():
     app = Flask(__name__)
