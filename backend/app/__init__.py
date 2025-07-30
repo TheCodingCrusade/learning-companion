@@ -8,7 +8,7 @@ from flask_socketio import SocketIO
 # Initialize extensions outside the factory
 socketio = SocketIO(cors_allowed_origins=[
     "http://localhost:3000",  # For local development
-    "https://learning-companion-mpujw825w-thecodingcrusades-projects.vercel.app/"
+    "https://learning-companion-chi.vercel.app/"
 ])
 
 def create_app():
