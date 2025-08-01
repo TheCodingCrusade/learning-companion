@@ -1,31 +1,25 @@
-import re
+# --- DEBUGGING VERSION ---
+
 import eventlet
 eventlet.monkey_patch()
 
 from flask import Flask
-from flask_cors import CORS
 from flask_socketio import SocketIO
-from werkzeug.middleware.proxy_fix import ProxyFix
 
-# This configuration uses a regular expression to allow all Vercel domains
+# Use the simplest possible configuration for debugging
 socketio = SocketIO(
     async_mode='eventlet',
-    cors_allowed_origins=[
-        "http://localhost:3000",
-        re.compile(r"https?://(.*\.)?vercel\.app")
-    ]
+    cors_allowed_origins="*"  # Allow all origins for this test
 )
 
 def create_app():
     app = Flask(__name__)
-    CORS(app) # Fallback CORS for general routes
-
-    # This is crucial for running behind Render's proxy
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-
+    
+    # We are temporarily removing CORS and ProxyFix from the app itself
+    
     socketio.init_app(app)
 
-    # Import and register the blueprint after app is created
+    # Import and register the blueprint
     from .routes import main_bp
     app.register_blueprint(main_bp)
 
