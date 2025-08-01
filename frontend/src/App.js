@@ -6,7 +6,8 @@ import './App.css';
 // but fall back to the local URL for development.
 const URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:5000";
 const socket = io(URL, {
-    transports: ["websocket", "polling"] // Recommended for robustness
+    transports: ["websocket", "polling"],
+    timeout: 20000
 });
 
 function App() {

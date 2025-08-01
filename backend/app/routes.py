@@ -96,3 +96,7 @@ def download_summary():
         if temp_docx_path and os.path.exists(temp_docx_path):
             os.remove(temp_docx_path)
             print(f"Cleaned up temporary file: {temp_docx_path}")
+
+@main_bp.route('/health')
+def health_check():
+    return "OK", 200
