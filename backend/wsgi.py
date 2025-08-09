@@ -8,7 +8,9 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 try:
-    from app import app, socketio
+    from app import create_app, socketio
+    
+    app = create_app()
     
     # Get port from environment (Render sets this) - handle empty string
     port_env = os.environ.get('PORT', '5000')
