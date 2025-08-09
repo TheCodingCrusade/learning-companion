@@ -12,8 +12,9 @@ try:
     
     app = create_app()
     
-    # Get port from environment (Render sets this)
-    port = int(os.environ.get('PORT', 5000))
+    # Get port from environment (Render sets this) - handle empty string
+    port_env = os.environ.get('PORT', '5000')
+    port = int(port_env) if port_env and port_env.strip() else 5000
     
     print(f"Starting server on 0.0.0.0:{port}")
     
