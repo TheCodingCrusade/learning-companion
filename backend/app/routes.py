@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, send_file
-from . import socketio
+from app import socketio  # Import from the main app module
+from .services import process_video_and_emit_progress
 import os
 import tempfile
 

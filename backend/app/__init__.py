@@ -3,29 +3,26 @@ from flask import Flask
 from flask_cors import CORS
 from flask_socketio import SocketIO
 
-# Configure SocketIO for production
-socketio = SocketIO(
-    cors_allowed_origins="*",
-    async_mode='eventlet',
-    logger=True,  # Enable logging for debugging
-    engineio_logger=True  # Enable engine.io logging
-)
-
 def create_app():
     app = Flask(__name__)
     
-    # Configure CORS for production
-    CORS(app, resources={
-        r"/*": {
-            "origins": ["https://learning-companion-chi.vercel.app", "*"],
-            "methods": ["GET", "POST", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
-            "supports_credentials": True
-        }
-    })
+    # Configure CORS for Flask routes
+    CORS(app, 
+         origins=["https://learning-companion-chi.vercel.app", "http://localhost:3000"],
+         methods=["GET", "POST", "OPTIONS"],
+         allow_headers=["Content-Type", "Authorization"],
+         supports_credentials=True)
     
-    # Initialize SocketIO with the app
-    socketio.init_app(app, cors_allowed_origins="*")
+    # Configure SocketIO with proper CORS settings
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins=["https://learning-companion-chi.vercel.app", "http://localhost:3000"],
+        async_mode='eventlet',
+        logger=False,  # Disable for production
+        engineio_logger=False,  # Disable for production
+        allow_upgrades=True,
+        transports=['polling', 'websocket']
+    )
 
     # Add a root route to fix the 404 error
     @app.route('/')
@@ -39,4 +36,7 @@ def create_app():
     except ImportError as e:
         print(f"Error importing routes: {e}")
         
-    return app
+    return app, socketio
+
+# Create the global socketio instance
+app, socketio = create_app()
