@@ -1,25 +1,19 @@
-# --- DEBUGGING VERSION ---
-
-import eventlet
-eventlet.monkey_patch()
-
 from flask import Flask
+from flask_cors import CORS
 from flask_socketio import SocketIO
 
-# Use the simplest possible configuration for debugging
-socketio = SocketIO(
-    async_mode='eventlet',
-    cors_allowed_origins="*"  # Allow all origins for this test
-)
+# Simple configuration for local development
+socketio = SocketIO(cors_allowed_origins="*")
 
 def create_app():
     app = Flask(__name__)
     
-    # We are temporarily removing CORS and ProxyFix from the app itself
+    # This allows your local React app to talk to your local Flask server
+    CORS(app)
     
     socketio.init_app(app)
 
-    # Import and register the blueprint
+    # Import and register your routes
     from .routes import main_bp
     app.register_blueprint(main_bp)
 
