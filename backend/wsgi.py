@@ -12,10 +12,20 @@ try:
     
     app = create_app()
     
-    if __name__ == "__main__":
-        port = int(os.environ.get('PORT', 5000))
-        print(f"Starting server on port {port}")
-        socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    # Get port from environment (Render sets this)
+    port = int(os.environ.get('PORT', 5000))
+    
+    print(f"Starting server on 0.0.0.0:{port}")
+    
+    # Start the server
+    socketio.run(
+        app, 
+        host='0.0.0.0', 
+        port=port, 
+        debug=False,
+        use_reloader=False,
+        allow_unsafe_werkzeug=True
+    )
         
 except Exception as e:
     print(f"Error starting application: {e}")
