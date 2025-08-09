@@ -9,19 +9,19 @@ socketio = SocketIO()
 def create_app():
     app = Flask(__name__)
     
-    # Configure CORS - use pattern matching for Vercel domains
+    # Configure CORS - permissive for all origins
     CORS(app, 
-         origins=["*"],  # Temporary - more secure options below
+         origins=["*"],
          methods=["GET", "POST", "OPTIONS"],
          allow_headers=["Content-Type", "Authorization"],
-         supports_credentials=True)
+         supports_credentials=False)  # Set to False when using "*"
     
-    # Initialize SocketIO with permissive CORS for now
+    # Initialize SocketIO with permissive CORS
     socketio.init_app(app, 
                       cors_allowed_origins="*",
                       async_mode='eventlet',
-                      logger=False,
-                      engineio_logger=False)
+                      logger=True,   # Enable logging to debug
+                      engineio_logger=True)
 
     # Add a root route
     @app.route('/')
@@ -32,6 +32,7 @@ def create_app():
     try:
         from .routes import main_bp
         app.register_blueprint(main_bp)
+        print("Routes registered successfully")
     except ImportError as e:
         print(f"Error importing routes: {e}")
         

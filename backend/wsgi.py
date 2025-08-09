@@ -17,6 +17,7 @@ try:
     port = int(port_env) if port_env and port_env.strip() else 5000
     
     print(f"Starting server on 0.0.0.0:{port}")
+    print(f"CORS origins configured: *")
     
     # Start the server
     socketio.run(
