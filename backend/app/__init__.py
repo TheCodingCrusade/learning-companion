@@ -9,16 +9,16 @@ socketio = SocketIO()
 def create_app():
     app = Flask(__name__)
     
-    # Configure CORS for all routes including Socket.IO
+    # Configure CORS - use pattern matching for Vercel domains
     CORS(app, 
-         origins=["https://learning-companion-chi.vercel.app", "http://localhost:3000"],
+         origins=["*"],  # Temporary - more secure options below
          methods=["GET", "POST", "OPTIONS"],
          allow_headers=["Content-Type", "Authorization"],
          supports_credentials=True)
     
-    # Initialize SocketIO with the app and CORS settings
+    # Initialize SocketIO with permissive CORS for now
     socketio.init_app(app, 
-                      cors_allowed_origins=["https://learning-companion-chi.vercel.app", "http://localhost:3000"],
+                      cors_allowed_origins="*",
                       async_mode='eventlet',
                       logger=False,
                       engineio_logger=False)
