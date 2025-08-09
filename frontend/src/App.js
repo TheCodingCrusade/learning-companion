@@ -4,7 +4,7 @@ import './App.css';
 
 // Use the production URL from the environment variable,
 // but fall back to the local URL for development.
-const URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:5000";
+const URL = process.env.REACT_APP_API_URL || "https://learning-companion-6vbw.onrender.com";
 const socket = io(URL, {
   transports: ["polling", "websocket"],
   timeout: 30000,

@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from . import socketio
 from .services import process_video_and_emit_progress
 import os
@@ -6,7 +6,7 @@ import tempfile
 
 main_bp = Blueprint('main', __name__)
 
-# This is the health check route for UptimeRobot
+# Health check route
 @main_bp.route('/health')
 def health_check():
     """A simple route to check if the server is alive."""
@@ -28,6 +28,33 @@ def handle_upload():
         temp_f_path = os.path.join(temp_dir, f"upload{suffix}")
         file.save(temp_f_path)
         return jsonify({'video_path': temp_f_path})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Add summary generation route that might be missing
+@main_bp.route('/download-summary', methods=['POST'])
+def download_summary():
+    """Generate and download summary"""
+    try:
+        data = request.get_json()
+        transcript = data.get('transcript')
+        slides_path = data.get('slides_path')
+        filename = data.get('filename', 'summary')
+        
+        if not transcript:
+            return jsonify({'error': 'No transcript provided'}), 400
+            
+        # Import here to avoid circular imports
+        from .summariser import generate_summary
+        
+        if slides_path and os.path.exists(slides_path):
+            summary_file = generate_summary(transcript, slides_path)
+        else:
+            return jsonify({'error': 'Slides file not found'}), 400
+            
+        return send_file(summary_file, as_attachment=True, 
+                        download_name=f'{filename}-summary.docx')
+                        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
